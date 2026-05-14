@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "docker-mcp-gateway": {
+      "url": "http://localhost:8811/sse"
+    }
+  }
+}
