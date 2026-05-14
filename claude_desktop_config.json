@@ -1,7 +1,17 @@
 {
   "mcpServers": {
     "docker-mcp-gateway": {
-      "url": "http://localhost:8811/sse"
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "--init",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "docker/mcp-gateway:latest",
+        "--servers=duckduckgo,time"
+      ]
     }
   }
 }

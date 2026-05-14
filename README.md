@@ -30,8 +30,8 @@ Docker's MCP Catalog and Toolkit makes running MCP servers effortless:
 ## Project Structure
 
 ```
-mcp/
-├── docker-compose.yml        # MCP Gateway with DuckDuckGo + Time servers
+mcp-docker-toolkit/
+├── docker-compose.yml         # Optional: run gateway as a persistent service
 ├── claude_desktop_config.json # Drop-in Claude Desktop configuration
 └── README.md
 ```
@@ -40,21 +40,7 @@ mcp/
 
 ## Quick Start
 
-### 1. Start the MCP Gateway
-
-```bash
-docker compose up -d
-```
-
-This pulls and starts the `docker/mcp-gateway` image, which automatically fetches and manages the configured MCP server containers.
-
-Verify it's running:
-
-```bash
-docker compose logs mcp-gateway
-```
-
-### 2. Connect Claude Desktop
+### 1. Connect Claude Desktop
 
 Copy the config file to Claude Desktop's config directory:
 
@@ -63,21 +49,29 @@ cp claude_desktop_config.json \
   ~/Library/Application\ Support/Claude/claude_desktop_config.json
 ```
 
-The config points Claude to the local gateway:
+The config tells Claude Desktop to spawn the gateway container on demand via **stdio** — no HTTP server, no `npx`, no extra dependencies:
 
 ```json
 {
   "mcpServers": {
     "docker-mcp-gateway": {
-      "url": "http://localhost:8811/sse"
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i", "--init",
+        "-v", "/var/run/docker.sock:/var/run/docker.sock",
+        "docker/mcp-gateway:latest",
+        "--servers=duckduckgo,time"
+      ]
     }
   }
 }
 ```
 
+> **How it works:** Claude Desktop launches `docker run` as a child process and communicates with the gateway over stdin/stdout (MCP stdio transport). The gateway then manages the individual MCP server containers internally.
+
 Restart Claude Desktop.
 
-### 3. Start Using Tools
+### 2. Start Using Tools
 
 Open a new chat in Claude Desktop and try:
 
@@ -89,31 +83,25 @@ Search DuckDuckGo for the Docker MCP Toolkit and give me a summary.
 What time is it right now in Tokyo, New York, and São Paulo?
 ```
 
-### 4. Stop the Gateway
-
-```bash
-docker compose down
-```
-
 ---
 
 ## How It Works
 
 ```
-┌─────────────────┐       SSE / HTTP        ┌──────────────────────────┐
-│  Claude Desktop │ ──────────────────────► │  docker/mcp-gateway:8811 │
-│  (MCP Client)   │                         │                          │
-└─────────────────┘                         │  ┌────────────────────┐  │
-                                            │  │  duckduckgo server │  │
-                                            │  ├────────────────────┤  │
-                                            │  │   time server      │  │
-                                            │  └────────────────────┘  │
-                                            └──────────────────────────┘
-                                                        │
-                                            Docker socket (host daemon)
+┌─────────────────┐     stdin/stdout      ┌──────────────────────────┐
+│  Claude Desktop │ ────────────────────► │  docker/mcp-gateway      │
+│  (MCP Client)   │   (MCP stdio/JSON-RPC)│  (child process via run) │
+└─────────────────┘                       │  ┌────────────────────┐  │
+                                          │  │  duckduckgo server │  │
+                                          │  ├────────────────────┤  │
+                                          │  │   time server      │  │
+                                          │  └────────────────────┘  │
+                                          └──────────────────────────┘
+                                                      │
+                                          Docker socket (host daemon)
 ```
 
-The gateway handles the full lifecycle of each MCP server container — you only configure the client once.
+Claude Desktop spawns the gateway as a child process (`docker run --rm -i`). The gateway speaks **MCP over stdio** and manages the individual server containers internally. No port binding or HTTP server needed.
 
 ---
 
